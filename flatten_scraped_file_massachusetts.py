@@ -10,16 +10,20 @@ import pandas as pd
 import os
 import re
 
-input_file = 'files/datalab-output-massachusettsele2010mass_Primary_Gen.csv'
+input_file = 'files/massachusettsele2010.csv'
 output_dir = 'output'
 os.makedirs(output_dir, exist_ok=True)
 
-state_election_file = os.path.join(output_dir, '1_State_Election.csv')
+state_election_file = os.path.join(output_dir, '3_State_Election.csv')
 voter_turnout_file  = os.path.join(output_dir, '2_Voter_Turnout.csv')
-votes_stats_file    = os.path.join(output_dir, '3_Votes_Stats.csv')
+votes_stats_file    = os.path.join(output_dir, '1_Votes_Stats.csv')
 
-df = pd.read_csv(input_file)
-print(f"Loaded {len(df):,} rows")
+try:
+    df = pd.read_csv(input_file)
+    print(f"Loaded {len(df):,} rows")
+except:
+    raise TypeError(f'Sorry faild to load PDF: {input_file}')
+
 
 # Event dates
 # Town, Precinct, Registered Voters, Party,	Votes, County, EventType, EventDate, OfficeTitle
@@ -34,7 +38,7 @@ EVENT_DATE_STATS = '11-02-2010'; EVENT_TYPE_STATS = 'General'
 votes_records = []; turnout_records = []; state_records = []
 
 county_pattern = re.compile(r'\b([A-Za-z\s\-]+)\s+County\b', re.IGNORECASE)
-junk_keywords = {'total','totals','registered voters','party enrollment','turnout','statewide','2008','overseas','absentee','political designations','*','state election'}
+junk_keywords = {'total','totals','registered voters','party enrollment','turnout','statewide','2008','overseas','absentee','political designations','*','state election', 'cont'}
 
 def clean_num(v):
     if pd.isna(v): return 0
@@ -57,8 +61,9 @@ def emit_row(precinct_name, data_row):
         'Precinct': precinct_name,
         'County': current_county
     }
-    reg1  = clean_num(data_row.get('Registered Voters1', 0))
-    reg3  = clean_num(data_row.get('Registered3', 0))
+    reg1  = clean_num(data_row.get('Registered1', 0))
+    Turnout3  = clean_num(data_row.get('Turnout3', 0))
+    reg3  = clean_num(data_row.get('Voter3', 0))
     cast = clean_num(data_row.get('Total Votes Cast2', 0))
 
 # ,Registered1,Democratic1,Republican1,Libertarian1,Unenrolled1,Designations1,Democratic2,Republican2,Libertarian2,Total Votes Cast2,Voters3,Turnout3,
@@ -83,7 +88,7 @@ def emit_row(precinct_name, data_row):
 
     # State Election
     state_records.append({**base,
-        'Registered': reg3, 
+        'Registered': reg3, "Voter Turnout": Turnout3,
         'EventType': EVENT_TYPE_STATS, 'EventDate': EVENT_DATE_STATS, 'OfficeTitle': ''})
 
 def flush_town():
@@ -115,14 +120,22 @@ for _, row in df.iterrows():
     raw = str(row['Precinct']) if pd.notna(row['Precinct']) else ''
     if not raw.strip(): continue
 
+    # Check if every column except 'Precinct' is empty/NaN
+    other_cols = row.drop(labels='Precinct')
+    if other_cols.isna().all():
+        continue
+
     cell = re.sub(r'[…]+|\.+', ' ', raw).strip()
     lower = cell.lower()
 
     # 1. County
     if 'county' in lower and not any(k in lower for k in junk_keywords):
-        flush_town()
         m = county_pattern.findall(raw)
-        current_county = to_title(m[-1].strip() if m else "Unknown") + " County"
+        new_county = to_title(m[-1].strip() if m else "Unknown") + " County"
+        if m == new_county:
+            continue
+        flush_town()
+        current_county = new_county
         print(f"County → {current_county}")
         continue
 
@@ -200,3 +213,4 @@ print("\nETERNAL VICTORY ACHIEVED.")
 print(f"   Votes_Stats:     {len(votes_records):,}")
 print(f"   Voter_Turnout:   {len(turnout_records):,}")
 print(f"   State_Election:  {len(state_records):,}")
+
