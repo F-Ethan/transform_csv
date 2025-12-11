@@ -10,26 +10,26 @@ import pandas as pd
 import os
 import re
 
-input_file = 'files/massachusettsele2008.csv'
+input_file = 'files/datalab-output-massachusettsele2010mass_Primary_Gen.csv'
 output_dir = 'output'
 os.makedirs(output_dir, exist_ok=True)
 
-votes_stats_file    = os.path.join(output_dir, 'Votes_Stats.csv')
-voter_turnout_file  = os.path.join(output_dir, 'Voter_Turnout.csv')
-state_election_file = os.path.join(output_dir, 'State_Election.csv')
+state_election_file = os.path.join(output_dir, '1_State_Election.csv')
+voter_turnout_file  = os.path.join(output_dir, '2_Voter_Turnout.csv')
+votes_stats_file    = os.path.join(output_dir, '3_Votes_Stats.csv')
 
 df = pd.read_csv(input_file)
 print(f"Loaded {len(df):,} rows")
 
 # Event dates
 # Town, Precinct, Registered Voters, Party,	Votes, County, EventType, EventDate, OfficeTitle
-EVENT_DATE_STATE = '2008-08-27'; EVENT_TYPE_STATE = 'Primary'
+EVENT_DATE_STATE = '08-25-2010'; EVENT_TYPE_STATE = 'Primary'
 
 # Town, Precinct, Votes Cast, Party, Turnout, County, EventType, EventDate,	OfficeTitle
-EVENT_DATE_TURNOUT = '2008-09-16'; EVENT_TYPE_TURNOUT = 'Primary Voter Turnout'
+EVENT_DATE_TURNOUT = '09-14-2010'; EVENT_TYPE_TURNOUT = 'Primary Voter Turnout'
 
 # Town, Precinct, Registered Voter, County, EventType, EventDate, OfficeTitle
-EVENT_DATE_STATS = '2008-11-04'; EVENT_TYPE_STATS = 'General'
+EVENT_DATE_STATS = '11-02-2010'; EVENT_TYPE_STATS = 'General'
 
 votes_records = []; turnout_records = []; state_records = []
 
@@ -39,7 +39,7 @@ junk_keywords = {'total','totals','registered voters','party enrollment','turnou
 def clean_num(v):
     if pd.isna(v): return 0
     s = str(v).strip().replace(',', '')
-    return int(float(s)) if s and s not in {'-', '—', '–', 'nan', 'NaN'} else 0
+    return int(float(s)) if s and s not in {'-', '—', '–', 'nan', 'NaN', '...'} else 0
 
 def to_title(s): return ' '.join(w.capitalize() for w in s.strip().lower().split())
 
@@ -59,12 +59,15 @@ def emit_row(precinct_name, data_row):
     }
     reg1  = clean_num(data_row.get('Registered Voters1', 0))
     reg3  = clean_num(data_row.get('Registered3', 0))
-    cast = clean_num(data_row.get('Votes Cast2', 0))
+    cast = clean_num(data_row.get('Total Votes Cast2', 0))
+
+# ,Registered1,Democratic1,Republican1,Libertarian1,Unenrolled1,Designations1,Democratic2,Republican2,Libertarian2,Total Votes Cast2,Voters3,Turnout3,
+
 
     # Votes_Stats
     for party, col in [('Democratic','Democratic1'), ('Republican','Republican1'),
-                       ('Green-Rainbow','Green-Rainbow1'), ('Working Families','Working Families1'),
-                       ('Unenrolled','Unenrolled1'), ('Political Designations','Political Designations1')]:
+                       ('Libertarian','Libertarian1'), ('Working Families','Working Families1'),
+                       ('Unenrolled','Unenrolled1'), ('Political Designations','Designations1')]:
         votes_records.append({**base,
             'Registered Voters': reg1, 'Party': party,
             'Votes': clean_num(data_row.get(col, 0)),
@@ -72,7 +75,7 @@ def emit_row(precinct_name, data_row):
 
     # Turnout
     for party, col in [('Democratic','Democratic2'), ('Republican','Republican2'),
-                       ('Green-Rainbow','Green-Rainbow2'), ('Working Families','Working Families2')]:
+                       ('Libertarian','Libertarian2')]:
         turnout_records.append({**base,
             'Total Votes Cast': cast, 'Party': party,
             'Votes Cast': clean_num(data_row.get(col, 0)),
