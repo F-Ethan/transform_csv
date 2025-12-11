@@ -14,9 +14,9 @@ input_file = 'files/massachusettsele2008.csv'
 output_dir = 'output'
 os.makedirs(output_dir, exist_ok=True)
 
-votes_stats_file    = os.path.join(output_dir, 'Votes_Stats.csv')
-voter_turnout_file  = os.path.join(output_dir, 'Voter_Turnout.csv')
-state_election_file = os.path.join(output_dir, 'State_Election.csv')
+votes_stats_file    = os.path.join(output_dir, '1_Votes_Stats.csv')
+voter_turnout_file  = os.path.join(output_dir, '2_Voter_Turnout.csv')
+state_election_file = os.path.join(output_dir, '3_State_Election.csv')
 
 df = pd.read_csv(input_file)
 print(f"Loaded {len(df):,} rows")
@@ -59,6 +59,7 @@ def emit_row(precinct_name, data_row):
     }
     reg1  = clean_num(data_row.get('Registered Voters1', 0))
     reg3  = clean_num(data_row.get('Registered3', 0))
+    Turnout3  = clean_num(data_row.get('Voter3', 0))
     cast = clean_num(data_row.get('Votes Cast2', 0))
 
     # Votes_Stats
@@ -80,7 +81,7 @@ def emit_row(precinct_name, data_row):
 
     # State Election
     state_records.append({**base,
-        'Registered': reg3, 
+        'Registered': reg3, 'Voter Turnout': Turnout3,
         'EventType': EVENT_TYPE_STATS, 'EventDate': EVENT_DATE_STATS, 'OfficeTitle': ''})
 
 def flush_town():
