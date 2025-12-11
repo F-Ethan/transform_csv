@@ -1,0 +1,26 @@
+# Data files
+*.csv
+*.xlsx
+*.xls
+*.pdf
+*.json
+*.parquet
+*.feather
+*.h5
+*.db
+*.sqlite
+*.zip
+*.tar.gz
+*.7z
+
+# Folders
+logs/
+input/
+output/
+files/
+
+# Also catch any files inside subfolders
+logs/**
+input/**
+output/**
+files/**
