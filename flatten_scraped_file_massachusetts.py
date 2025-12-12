@@ -10,7 +10,7 @@ import pandas as pd
 import os
 import re
 
-input_file = 'files/massachusettsele2006.csv'
+input_file = 'files/massachusettsele2000.csv'
 output_dir = 'output'
 os.makedirs(output_dir, exist_ok=True)
 
@@ -38,7 +38,10 @@ EVENT_DATE_STATS = '11-02-2010'; EVENT_TYPE_STATS = 'General'
 votes_records = []; turnout_records = []; state_records = []
 
 county_pattern = re.compile(r'\b([A-Za-z\s\-]+)\s+County\b', re.IGNORECASE)
-junk_keywords = {'total', 'aggregate', 'totals','registered voters','party enrollment','turnout','statewide','2008','overseas','absentee','political designations','*','state election', 'cont'}
+junk_keywords = {
+    'total', 'aggregate', 'totals','registered voters','party enrollment', 'community',
+    'turnout','statewide','2008','overseas','absentee','political designations',
+    '*','state election', 'cont', 'registered voters, party enrollment and turnout'}
 
 def clean_num(v):
     if pd.isna(v): return 0
@@ -62,8 +65,8 @@ def emit_row(precinct_name, data_row):
         'County': current_county
     }
     reg1  = clean_num(data_row.get('Registered1', 0))
-    Turnout3  = clean_num(data_row.get('Turnout3', 0))
-    reg3  = clean_num(data_row.get('Voter3', 0))
+    Turnout3  = clean_num(data_row.get('Voter Turnout3', 0))
+    reg3  = clean_num(data_row.get('Registered Voters3', 0))
     cast = clean_num(data_row.get('Total Votes Cast2', 0))
 
 # ,Registered1,Democratic1,Republican1,Libertarian1,Unenrolled1,Designations1,Democratic2,Republican2,Libertarian2,Total Votes Cast2,Voters3,Turnout3,
@@ -71,7 +74,9 @@ def emit_row(precinct_name, data_row):
 
     # Votes_Stats
     for party, col in [('Democratic','Democratic1'), ('Republican','Republican1'),
-                    #    ('Libertarian','Libertarian1'), ('Working Families','Working Families1'),
+                       ('Libertarian','Libertarian1'), 
+                    #    ('Green', 'Green1'),
+                    #  ('Working Families','Working Families1'),
                        ('Unenrolled','Unenrolled1'), 
                     #    ('Political Designations','Designations1')
                        ]:
@@ -82,7 +87,8 @@ def emit_row(precinct_name, data_row):
 
     # Turnout
     for party, col in [('Democratic','Democratic2'), ('Republican','Republican2'),
-                    #    ('Libertarian','Libertarian2')
+                       ('Libertarian','Libertarian2'), 
+                    #    ('Green', 'Green2')
                        ]:
         turnout_records.append({**base,
             'Total Votes Cast': cast, 'Party': party,
@@ -119,7 +125,7 @@ def flush_town():
 
 print("\nProcessing rows...")
 
-for _, row in df.iterrows():
+for index, row in df.iterrows():
     raw = str(row['Precinct']) if pd.notna(row['Precinct']) else ''
     if not raw.strip(): continue
 
@@ -130,6 +136,9 @@ for _, row in df.iterrows():
 
     cell = re.sub(r'[…]+|\.+', ' ', raw).strip()
     lower = cell.lower()
+
+    if index < 21:
+        continue
 
     # 1. County
     if 'county' in lower and not any(k in lower for k in junk_keywords):
