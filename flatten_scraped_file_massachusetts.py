@@ -10,7 +10,7 @@ import pandas as pd
 import os
 import re
 
-input_file = 'files/massachusettsele2000.csv'
+input_file = 'files/massachusettsele2002.csv'
 output_dir = 'output'
 os.makedirs(output_dir, exist_ok=True)
 
@@ -27,13 +27,13 @@ except:
 
 # Event dates
 # Town, Precinct, Registered Voters, Party,	Votes, County, EventType, EventDate, OfficeTitle
-EVENT_DATE_STATE = '08-25-2010'; EVENT_TYPE_STATE = 'Primary' 
+EVENT_DATE_STATE = '08-28-2002'; EVENT_TYPE_STATE = 'Primary' 
 
-# Town, Precinct, Votes Cast, Party, Turnout, County, EventType, EventDate,	OfficeTitle
-EVENT_DATE_TURNOUT = '09-19-2006'; EVENT_TYPE_TURNOUT = 'Primary Voter Turnout'
+# Town, Precinct, Votes Cast, Party, Turnout, County, EventType, EventDate,	OfficeTitle 
+EVENT_DATE_TURNOUT = '09-17-2002'; EVENT_TYPE_TURNOUT = 'Primary Voter Turnout'
 
-# Town, Precinct, Registered Voter, County, EventType, EventDate, OfficeTitle
-EVENT_DATE_STATS = '11-02-2010'; EVENT_TYPE_STATS = 'General'
+# Town, Precinct, Registered Voter, County, EventType, EventDate, OfficeTitle 
+EVENT_DATE_STATS = '11-05-2002'; EVENT_TYPE_STATS = 'General'
 
 votes_records = []; turnout_records = []; state_records = []
 
@@ -75,7 +75,7 @@ def emit_row(precinct_name, data_row):
     # Votes_Stats
     for party, col in [('Democratic','Democratic1'), ('Republican','Republican1'),
                        ('Libertarian','Libertarian1'), 
-                    #    ('Green', 'Green1'),
+                       ('Green', 'Green1'),
                     #  ('Working Families','Working Families1'),
                        ('Unenrolled','Unenrolled1'), 
                     #    ('Political Designations','Designations1')
@@ -88,8 +88,8 @@ def emit_row(precinct_name, data_row):
     # Turnout
     for party, col in [('Democratic','Democratic2'), ('Republican','Republican2'),
                        ('Libertarian','Libertarian2'), 
-                    #    ('Green', 'Green2')
-                       ]:
+                       ('Green', 'Green2')
+                       ]: 
         turnout_records.append({**base,
             'Total Votes Cast': cast, 'Party': party,
             'Votes Cast': clean_num(data_row.get(col, 0)),
@@ -137,7 +137,7 @@ for index, row in df.iterrows():
     cell = re.sub(r'[…]+|\.+', ' ', raw).strip()
     lower = cell.lower()
 
-    if index < 21:
+    if index < 19:
         continue
 
     # 1. County
