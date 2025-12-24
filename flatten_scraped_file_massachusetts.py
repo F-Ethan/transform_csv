@@ -63,7 +63,7 @@ def emit_row(precinct_name, data_row):
     }
     reg1  = clean_num(data_row.get('Registered1', 0))
     Turnout3  = clean_num(data_row.get('Turnout3', 0))
-    reg3  = clean_num(data_row.get('Voter3', 0))
+    reg3  = clean_num(data_row.get('Voters3', 0))
     cast = clean_num(data_row.get('Total Votes Cast2', 0))
 
 # ,Registered1,Democratic1,Republican1,Libertarian1,Unenrolled1,Designations1,Democratic2,Republican2,Libertarian2,Total Votes Cast2,Voters3,Turnout3,
@@ -109,7 +109,7 @@ def flush_town():
 
     # No precinct rows → single-precinct town → use town name as precinct
     elif last_data_row is not None:
-        emit_row("Ward # Precinct 0", last_data_row)
+        emit_row(current_town, last_data_row)
 
     # Reset state
     current_town = None
@@ -158,12 +158,12 @@ for _, row in df.iterrows():
     if current_town and is_precinct_like:
         precinct_name = current_town
 
-        if re.search(r'\bwd\.?\b', lower) and re.search(r'\bpct\.?\b|\bprecinct\b', lower):
+        if re.search(r'\bwd\.?\b', lower):
             ward_m = re.search(r'\bwd\.?\s*([A-Z0-9]+)', lower, re.I)
             if ward_m:
                 current_prefix = f"Ward {ward_m.group(1).upper()} Precinct "  # ← clean, no comma
                 pct_m = re.search(r'\bpct\.?\s*([A-Z0-9]+)', cell, re.I)
-                pid = pct_m.group(1).upper() if pct_m else re.search(r'\b([A-Z0-9]+)\b', cell).group(1).upper()
+                pid = pct_m.group(1).upper() if pct_m else "0"
                 precinct_name = current_prefix + pid
 
         elif current_prefix and re.search(r'\b[A-Z0-9]+\b', cell):
