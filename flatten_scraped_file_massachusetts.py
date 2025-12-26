@@ -107,16 +107,26 @@ def flush_town():
         last_data_row = None
         return
 
-    # If we have actual precinct rows → use them
-    if town_rows:
-        for precinct_name, data in town_rows:          # ← FIXED: unpack tuple
-            emit_row(precinct_name, data)              # ← FIXED: use precinct_name from loop
+    # Define columns that represent votes (exclude pure registration counts)
+    vote_columns = [
+        'Total Votes Cast2', 'Democratic2', 'Republican2', 'Reform2',  # Cast votes
+    ]
 
-    # No precinct rows → single-precinct town → use town name as precinct
+    # Calculate total votes across all accumulated precinct rows
+    precinct_votes_total = 0
+    for _, data in town_rows:
+        precinct_votes_total += sum(clean_num(data.get(col, 0)) for col in vote_columns)
+
+    # Decision logic
+    if precinct_votes_total > 0 and town_rows:
+        # Precincts have actual votes → emit each precinct individually
+        for precinct_name, data in town_rows:
+            emit_row(precinct_name, data)
     elif last_data_row is not None:
-        emit_row("Ward # Precinct 0", last_data_row)
+        # No votes in precincts → treat as single-precinct town; use town name and town row data
+        emit_row("current_town", last_data_row)
 
-    # Reset state
+    # Reset state (unchanged)
     current_town = None
     current_prefix = ""
     town_rows = []
@@ -160,18 +170,18 @@ for index, row in df.iterrows():
         'pct' in lower or
         'ward' in lower or
         'precinct' in lower or
-        re.search(r'^\s*[A-Z0-9]{1,2}\s*$', cell)
+        re.search(r'^\s*[A-Z0-9]{1,3}\s*$', cell)
     )
 
     if current_town and is_precinct_like:
         precinct_name = current_town
 
-        if re.search(r'\bwd\.?\b', lower) and re.search(r'\bpct\.?\b|\bprecinct\b', lower):
+        if re.search(r'\bwd\.?\b', lower):
             ward_m = re.search(r'\bwd\.?\s*([A-Z0-9]+)', lower, re.I)
             if ward_m:
                 current_prefix = f"Ward {ward_m.group(1).upper()} Precinct "  # ← clean, no comma
                 pct_m = re.search(r'\bpct\.?\s*([A-Z0-9]+)', cell, re.I)
-                pid = pct_m.group(1).upper() if pct_m else re.search(r'\b([A-Z0-9]+)\b', cell).group(1).upper()
+                pid = pct_m.group(1).upper() if pct_m else "0"
                 precinct_name = current_prefix + pid
 
         elif current_prefix and re.search(r'\b[A-Z0-9]+\b', cell):
@@ -185,7 +195,6 @@ for index, row in df.iterrows():
 
         precinct_name = re.sub(r'\s+', ' ', precinct_name).strip()
         town_rows.append((precinct_name, row.to_dict()))
-        last_data_row = None  # we have real precincts
         continue
 
     # 4. New town detected
