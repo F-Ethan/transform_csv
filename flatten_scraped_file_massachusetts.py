@@ -10,7 +10,7 @@ import pandas as pd
 import os
 import re
 
-input_file = 'files/massachusettsele1998.csv'
+input_file = 'files/massachusettsele1996.csv'
 output_dir = 'output'
 os.makedirs(output_dir, exist_ok=True)
 
@@ -26,14 +26,14 @@ except:
 
 
 # Event dates
-# Town, Precinct, Registered Voters, Party,	Votes, County, EventType, EventDate, OfficeTitle
-EVENT_DATE_STATE = '08-01-1998'; EVENT_TYPE_STATE = 'Primary' 
+# Town, Precinct, Registered Voters, Party,	Votes, County, EventType, EventDate, OfficeTitle 14-Sep-82
+EVENT_DATE_STATE = '09-20-1994'; EVENT_TYPE_STATE = 'Primary' 
 
 # Town, Precinct, Votes Cast, Party, Turnout, County, EventType, EventDate,	OfficeTitle 
-EVENT_DATE_TURNOUT = '09-15-1998'; EVENT_TYPE_TURNOUT = 'Primary Voter Turnout'
+EVENT_DATE_TURNOUT = '09-20-1994'; EVENT_TYPE_TURNOUT = 'Primary Voter Turnout'
 
 # Town, Precinct, Registered Voter, County, EventType, EventDate, OfficeTitle 
-EVENT_DATE_STATS = '11-03-1998'; EVENT_TYPE_STATS = 'General'
+EVENT_DATE_STATS = '11-08-1994'; EVENT_TYPE_STATS = 'General'
 
 votes_records = []; turnout_records = []; state_records = []
 
@@ -45,8 +45,14 @@ junk_keywords = {
 
 def clean_num(v):
     if pd.isna(v): return 0
-    s = str(v).strip().replace(',', '')
-    return int(float(s)) if s and s not in {'-', '—', '–', 'nan', 'NaN', '...'} else 0
+    try:
+        s = str(v).strip().replace(',', '')
+        return int(float(s)) if s and s not in {'-', '—', '–', 'nan', 'NaN', '...'} else 0\
+        
+    except:
+        print(f"Not a number:{s}")
+        TypeError(f"{s}: is not a number")
+        
 
 def to_title(s): return ' '.join(w.capitalize() for w in s.strip().lower().split())
 
@@ -58,46 +64,23 @@ current_prefix = ""
 town_rows      = []           # list of (precinct_name, row_dict)
 last_data_row  = None         # ← NEW: remembers the vote row for single-precinct towns
 
-def emit_row(precinct_name, data_row):
-    base = {
-        'Town': current_town,
-        'Precinct': precinct_name,
-        'County': current_county
+def emit_row(base_dict, target_list, specific_fields):
+    """
+    Append a single standardised record to the specified target list.
+    
+    Parameters:
+        base_dict:        Dictionary containing common fields (Town, Precinct, County).
+        target_list:      The global list to append to (e.g., votes_records, turnout_records, state_records).
+        specific_fields:  Dictionary of event-specific fields to merge into the record.
+    """
+    record = {
+        **base_dict,
+        **specific_fields,
+        'EventDate': specific_fields.get('EventDate', ''),  # Ensure consistent keys if needed
+        'OfficeTitle': ''
     }
-    reg1  = clean_num(data_row.get('Registered1', 0))
-    Turnout3  = clean_num(data_row.get('Turnout3', 0))
-    reg3  = clean_num(data_row.get('Registered3', 0))
-    cast = clean_num(data_row.get('Total Votes Cast2', 0))
+    target_list.append(record)
 
-# Precinct,Registered1,Democratic1,Republican1,Reform1,Unenrolled1,Total Votes Cast2,Democratic2,Republican2,Reform2,Registered3,Turnout3,,,,,,,,,,,,
-
-
-    # Votes_Stats
-    for party, col in [('Democratic','Democratic1'), ('Republican','Republican1'),
-                       ('Libertarian','Libertarian1'), 
-                       ('Reform', 'Reform1'),
-                    #  ('Working Families','Working Families1'),
-                       ('Unenrolled','Unenrolled1'), 
-                    #    ('Political Designations','Designations1')
-                       ]:
-        votes_records.append({**base,
-            'Registered Voters': reg1, 'Party': party,
-            'Votes': clean_num(data_row.get(col, 0)),
-            'EventType': EVENT_TYPE_STATE, 'EventDate': EVENT_DATE_STATE, 'OfficeTitle': ''})
-
-    # Turnout
-    for party, col in [('Democratic','Democratic2'), ('Republican','Republican2'),
-                       ('Reform', 'Reform2'),
-                       ]: 
-        turnout_records.append({**base,
-            'Total Votes Cast': cast, 'Party': party,
-            'Votes Cast': clean_num(data_row.get(col, 0)),
-            'EventType': EVENT_TYPE_TURNOUT, 'EventDate': EVENT_DATE_TURNOUT, 'OfficeTitle': ''})
-
-    # State Election
-    state_records.append({**base,
-        'Registered': reg3, "Voter Turnout": Turnout3,
-        'EventType': EVENT_TYPE_STATS, 'EventDate': EVENT_DATE_STATS, 'OfficeTitle': ''})
 
 def flush_town():
     global current_town, town_rows, last_data_row
@@ -107,46 +90,168 @@ def flush_town():
         last_data_row = None
         return
 
-    # Define columns that represent votes (exclude pure registration counts)
-    vote_columns = [
-        'Total Votes Cast2', 'Democratic2', 'Republican2', 'Reform2',  # Cast votes
-    ]
+    # Indicator column sets
+    reg_party_columns = ['Democratic1', 'Republican1', 'Unenrolled1']
+    turnout_columns = ['Total Votes Cast2', 'Democratic2', 'Republican2']
 
-    # Calculate total votes across all accumulated precinct rows
-    precinct_votes_total = 0
-    for _, data in town_rows:
-        precinct_votes_total += sum(clean_num(data.get(col, 0)) for col in vote_columns)
+    # Detect presence of precinct-level data
+    has_precinct_registration = any(
+        sum(clean_num(data.get(col, 0)) for col in reg_party_columns) > 0
+        for _, data in town_rows
+    )
 
-    # Decision logic
-    if precinct_votes_total > 0 and town_rows:
-        # Precincts have actual votes → emit each precinct individually
+    has_precinct_turnout = any(
+        sum(clean_num(data.get(col, 0)) for col in turnout_columns) > 0
+        for _, data in town_rows
+    )
+
+    # Helper to create base dictionary
+    def make_base(precinct_name):
+        return {
+            'Town': current_town,
+            'Precinct': precinct_name,
+            'County': current_county
+        }
+
+    # === Emit registration-by-party records (EVENT_TYPE_STATE) ===
+    if has_precinct_registration and town_rows:
+        # Use precinct-level rows
         for precinct_name, data in town_rows:
-            emit_row(precinct_name, data)
-    elif last_data_row is not None:
-        # No votes in precincts → treat as single-precinct town; use town name and town row data
-        emit_row("current_town", last_data_row)
+            base = make_base(precinct_name)
+            reg1 = clean_num(data.get('Registered1', 0))
 
-    # Reset state (unchanged)
+            for party, col in [
+                ('Democratic', 'Democratic1'),
+                ('Republican', 'Republican1'),
+                ('Unenrolled', 'Unenrolled1'),
+            ]:
+                emit_row(
+                    base,
+                    votes_records,
+                    {
+                        'Registered Voters': reg1,
+                        'Party': party,
+                        'Votes': clean_num(data.get(col, 0)),
+                        'EventType': EVENT_TYPE_STATE,
+                        'EventDate': EVENT_DATE_STATE
+                    }
+                )
+    elif last_data_row is not None:
+        # Fall back to town-level row
+        base = make_base(current_town)
+        reg1 = clean_num(last_data_row.get('Registered1', 0))
+
+        for party, col in [
+            ('Democratic', 'Democratic1'),
+            ('Republican', 'Republican1'),
+            ('Unenrolled', 'Unenrolled1'),
+        ]:
+            emit_row(
+                base,
+                votes_records,
+                {
+                    'Registered Voters': reg1,
+                    'Party': party,
+                    'Votes': clean_num(last_data_row.get(col, 0)),
+                    'EventType': EVENT_TYPE_STATE,
+                    'EventDate': EVENT_DATE_STATE
+                }
+            )
+
+    # === Emit turnout-by-party records (EVENT_TYPE_TURNOUT) ===
+    if has_precinct_turnout and town_rows:
+        # Use precinct-level rows
+        for precinct_name, data in town_rows:
+            base = make_base(precinct_name)
+            cast = clean_num(data.get('Total Votes Cast2', 0))
+
+            for party, col in [
+                ('Democratic', 'Democratic2'),
+                ('Republican', 'Republican2'),
+            ]:
+                emit_row(
+                    base,
+                    turnout_records,
+                    {
+                        'Total Votes Cast': cast,
+                        'Party': party,
+                        'Votes Cast': clean_num(data.get(col, 0)),
+                        'EventType': EVENT_TYPE_TURNOUT,
+                        'EventDate': EVENT_DATE_TURNOUT
+                    }
+                )
+    elif last_data_row is not None:
+        # Fall back to town-level row
+        base = make_base(current_town)
+        cast = clean_num(last_data_row.get('Total Votes Cast2', 0))
+
+        for party, col in [
+            ('Democratic', 'Democratic2'),
+            ('Republican', 'Republican2'),
+        ]:
+            emit_row(
+                base,
+                turnout_records,
+                {
+                    'Total Votes Cast': cast,
+                    'Party': party,
+                    'Votes Cast': clean_num(last_data_row.get(col, 0)),
+                    'EventType': EVENT_TYPE_TURNOUT,
+                    'EventDate': EVENT_DATE_TURNOUT
+                }
+            )
+
+        # === Emit overall statistics (EVENT_TYPE_STATS) ===
+    # Emit a statistics record for every precinct row when precinct data is available;
+    # otherwise, emit a single record using the town-level row.
+    if town_rows:
+        # Precinct rows exist → emit one statistics record per precinct
+        for precinct_name, data in town_rows:
+            base = make_base(precinct_name)
+            reg3 = clean_num(data.get('Registered Voters3', 0))
+            turnout3 = clean_num(data.get('Voter Turnout3', 0))
+
+            emit_row(
+                base,
+                state_records,
+                {
+                    'Registered': reg3,
+                    'Voter Turnout': turnout3,
+                    'EventType': EVENT_TYPE_STATS,
+                    'EventDate': EVENT_DATE_STATS
+                }
+            )
+    elif last_data_row is not None:
+        # No precinct rows → emit a single record for the town
+        base = make_base(current_town)
+        reg3 = clean_num(last_data_row.get('Registered Voters3', 0))
+        turnout3 = clean_num(last_data_row.get('Voter Turnout3', 0))
+
+        emit_row(
+            base,
+            state_records,
+            {
+                'Registered': reg3,
+                'Voter Turnout': turnout3,
+                'EventType': EVENT_TYPE_STATS,
+                'EventDate': EVENT_DATE_STATS
+            }
+        )
+
+    # Reset state
     current_town = None
-    current_prefix = ""
     town_rows = []
     last_data_row = None
 
-print("\nProcessing rows...")
-
 for index, row in df.iterrows():
     raw = str(row['Precinct']) if pd.notna(row['Precinct']) else ''
-    if not raw.strip(): continue
-
-    # Check if every column except 'Precinct' is empty/NaN
-    other_cols = row.drop(labels='Precinct')
-    if other_cols.isna().all():
+    if not raw.strip(): 
         continue
 
     cell = re.sub(r'[…]+|\.+', ' ', raw).strip()
     lower = cell.lower()
 
-    if index < 4:
+    if index < 2:
         continue
 
     # 1. County
@@ -164,7 +269,19 @@ for index, row in df.iterrows():
     if any(k in lower for k in junk_keywords) or raw.startswith('*'):
         continue
 
-    # 3. Precinct-like line
+    # New: Check if other columns are all empty/NaN (header-like ward line)
+    other_cols = row.drop(labels='Precinct')
+    if other_cols.isna().all():
+        # Attempt to detect and set ward prefix (e.g., "Wd. 1")
+        if re.search(r'\bwd\.?\b', lower):
+            ward_m = re.search(r'\bwd\.?\s*([A-Z0-9]+)', lower, re.I)
+            if ward_m:
+                current_prefix = f"Ward {ward_m.group(1).upper()} Precinct "
+                print(f"    Set ward prefix from header line: {current_prefix}")
+        # If no ward match, ignore this empty row (as before)
+        continue
+
+    # 3. Precinct-like line (now only for data-containing rows)
     is_precinct_like = (
         'wd' in lower or
         'pct' in lower or

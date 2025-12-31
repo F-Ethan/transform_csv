@@ -18,9 +18,11 @@ logs/
 input/
 output/
 files/
+venv/
 
 # Also catch any files inside subfolders
 logs/**
 input/**
 output/**
 files/**
+venv/**
