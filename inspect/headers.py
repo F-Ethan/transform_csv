@@ -2,7 +2,7 @@ import os
 import csv
 
 # Directory containing the CSV files
-directory = 'Files'
+directory = '../files'
 
 # Check if directory exists
 if not os.path.exists(directory):

@@ -15,9 +15,9 @@ from pathlib import Path
 
 # ====================== CONFIGURATION ======================
 # Folders
-FILES_FOLDER   = Path("files")
-LOGS_FOLDER    = Path("logs")
-FILES_OUTPUT   = Path("output")
+FILES_FOLDER   = Path("../files")
+LOGS_FOLDER    = Path("../logs")
+FILES_OUTPUT   = Path("../output")
 
 # Files
 INPUT_CSV  = FILES_FOLDER / "contracostaca--2002-03-05_Special_State_CC.csv"

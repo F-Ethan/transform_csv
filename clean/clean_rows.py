@@ -16,9 +16,9 @@ from pathlib import Path
 # Update these variables for different files or columns
 
 # Folders
-FILES_FOLDER   = Path("files")          # Input / output CSVs
-LOGS_FOLDER    = Path("logs")           # Log files
-FILES_OUTPUT   = Path("output")         # (kept for compatibility – not used)
+FILES_FOLDER   = Path("../files")       # Input / output CSVs
+LOGS_FOLDER    = Path("../logs")        # Log files
+FILES_OUTPUT   = Path("../output")      # (kept for compatibility – not used)
 
 # File names
 INPUT_CSV      = FILES_FOLDER / "contracostaca--2002-03-05_Special_two.csv"

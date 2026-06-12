@@ -1,11 +1,10 @@
 import pandas as pd
 import os
-from collections import Counter  # Note: This is unused in the script; you can remove it if not needed elsewhere
 
 
 # Centralized configuration
-folder = "files"
-output_prefix = "fixed--"
+folder = "../files"
+output_prefix = "../output/fixed--"
 
 # Column names (update these for new files)
 PRECINCT_COL = 'PrecinctName'

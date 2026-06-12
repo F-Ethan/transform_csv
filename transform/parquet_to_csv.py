@@ -2,8 +2,8 @@ import polars as pl
 from pathlib import Path
 
 # Configuration
-input_folder = Path("files")          # Folder containing .parquet files
-output_csv = Path("output/parquet.csv")       # Desired output CSV file
+input_folder = Path("../files")        # Folder containing .parquet files
+output_csv = Path("../output/parquet.csv")    # Desired output CSV file
 
 # Find all .parquet files in the input folder
 parquet_files = list(input_folder.glob("*.parquet"))

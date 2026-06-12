@@ -48,7 +48,7 @@ def extract_contest_precincts(xlsx_path, output_csv=None):
     # ------------------------------------------------------------------
     # Write CSV
     # ------------------------------------------------------------------
-    output_path = output_csv or Path(xlsx_path).stem + "_contests_by_precinct.csv"
+    output_path = output_csv or Path("../output") / (Path(xlsx_path).stem + "_contests_by_precinct.csv")
     with open(output_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         # Header: Contest Title, Precinct 1, Precinct 2, …
@@ -66,7 +66,7 @@ def extract_contest_precincts(xlsx_path, output_csv=None):
 # QUICK DRIVER – drop any .xlsx file in the folder and run
 # ----------------------------------------------------------------------
 if __name__ == "__main__":
-    xlsx_files = glob.glob("files/*.xlsx")
+    xlsx_files = glob.glob("../files/*.xlsx")
     if not xlsx_files:
         print("No .xlsx file found in the current folder.")
     else:

@@ -20,35 +20,39 @@ from pathlib import Path
 from typing import List, Dict, Optional
 
 # ====================== CONFIGURATION ======================
-FILES_FOLDER   = Path("files")
-LOGS_FOLDER    = Path("logs")
-OUTPUT_FOLDER  = Path("output")
+FILES_FOLDER   = Path("../files")
+LOGS_FOLDER    = Path("../logs")
+OUTPUT_FOLDER  = Path("../output")
 
-INPUT_CSV = FILES_FOLDER / "tarranttx--2020-03-03_Primary.csv"
+def _find_input_csvs() -> List[Path]:
+    matches = sorted(FILES_FOLDER.glob("*.csv"))
+    if not matches:
+        raise FileNotFoundError(f"No CSV files found in {FILES_FOLDER}/")
+    return matches
+
+INPUT_CSVS = _find_input_csvs()
 
 # Column that contains the contest name
-OFFICE_COLUMN = "Contest Party"
+OFFICE_COLUMN = "PrimaryParty"
 
 # --------------------- CATEGORY DEFINITIONS ---------------------
 @dataclass
 class Category:
-    name: str                     # Human readable name (used in logs)
+    name: str                     # Human readable name – also used as the output file suffix
     pattern: re.Pattern           # Compiled regex
-    output_file: Path             # Where matching rows go
     description: Optional[str] = None  # Optional longer description
 
 # Define your buckets here – order matters! First match wins.
+# Output files are named automatically: {input_stem}-{category.name}.csv
 CATEGORIES: List[Category] = [
 
     Category(
-        name="Dem",
+        name="Democratic",
         pattern=re.compile(r"Dem", re.IGNORECASE),
-        output_file=OUTPUT_FOLDER / "Democratic.csv",
     ),
     Category(
-        name="Rep",
+        name="Republican",
         pattern=re.compile(r"Rep", re.IGNORECASE),
-        output_file=OUTPUT_FOLDER / "Republican.csv",
     ),
     # Category(
     #     name="Non_Partisan",
@@ -87,9 +91,8 @@ CATEGORIES: List[Category] = [
     # ),
     # Catch-all bucket – MUST BE LAST
     Category(
-        name="Everything Else",
+        name="Other",
         pattern=re.compile(r".*", re.IGNORECASE),   # matches anything
-        output_file=OUTPUT_FOLDER / "99_other_contests.csv",
         description="Fallback bucket for rows that didn't match earlier rules"
     ),
     # Category(
@@ -169,15 +172,21 @@ def split_csv(input_path: Path, categories: List[Category]) -> Dict[str, int]:
     logging.info("Starting split of %s", input_path)
     logging.info("Defined %d categories (order matters)", len(categories))
 
-    # Open all output files once
+    # Files are opened lazily — only created when the first matching row is written
     writers: Dict[str, csv.DictWriter] = {}
-    files: Dict[str, Path] = {}
+    file_handles = {}
+    output_paths: Dict[str, Path] = {}
 
-    for cat in categories:
-        fp = open(cat.output_file, "w", encoding=OUTPUT_ENCODING, newline="")
-        files[cat.name] = fp
-        writer = csv.DictWriter(fp, fieldnames=None, delimiter=OUTPUT_DELIMITER)
-        writers[cat.name] = writer
+    def get_writer(cat, fieldnames):
+        if cat.name not in writers:
+            out_path = OUTPUT_FOLDER / f"{input_path.stem}-{cat.name}.csv"
+            output_paths[cat.name] = out_path
+            fp = open(out_path, "w", encoding=OUTPUT_ENCODING, newline="")
+            file_handles[cat.name] = fp
+            writer = csv.DictWriter(fp, fieldnames=fieldnames, delimiter=OUTPUT_DELIMITER)
+            writer.writeheader()
+            writers[cat.name] = writer
+        return writers[cat.name]
 
     with open(input_path, "r", encoding=INPUT_ENCODING, newline="") as infile:
         reader = csv.DictReader(infile, delimiter=INPUT_DELIMITER)
@@ -185,11 +194,6 @@ def split_csv(input_path: Path, categories: List[Category]) -> Dict[str, int]:
 
         if OFFICE_COLUMN not in fieldnames:
             raise ValueError(f"Column '{OFFICE_COLUMN}' not found. Available columns: {fieldnames}")
-
-        # Write headers to every output file
-        for cat in categories:
-            writers[cat.name].fieldnames = fieldnames
-            writers[cat.name].writeheader()
 
         for row in reader:
             total_read += 1
@@ -199,7 +203,7 @@ def split_csv(input_path: Path, categories: List[Category]) -> Dict[str, int]:
             matched = False
             for cat in categories:
                 if cat.pattern.search(office):
-                    writers[cat.name].writerow(row)
+                    get_writer(cat, fieldnames).writerow(row)
                     counters[cat.name] += 1
                     matched = True
                     break
@@ -213,33 +217,35 @@ def split_csv(input_path: Path, categories: List[Category]) -> Dict[str, int]:
     # Final progress log
     logging.info("Finished reading %d rows", total_read)
 
-    # Close all files
-    for fp in files.values():
+    # Close all open file handles
+    for fp in file_handles.values():
         fp.close()
 
-    return counters
+    return counters, output_paths
 
 
 def main() -> None:
     log_file = setup_logging()
+    logging.info("Found %d input file(s) in %s", len(INPUT_CSVS), FILES_FOLDER)
 
-    logging.info("Input file : %s", INPUT_CSV)
-    for cat in CATEGORIES:
-        logging.info("Category '%s' → %s", cat.name, cat.output_file.name)
+    for input_csv in INPUT_CSVS:
+        logging.info("Processing: %s", input_csv.name)
 
-    counters = split_csv(INPUT_CSV, CATEGORIES)
+        counters, output_paths = split_csv(input_csv, CATEGORIES)
 
-    # --------------------- SUMMARY ---------------------
-    print("\n" + "="*60)
-    print("SPLIT COMPLETED SUCCESSFULLY")
-    print("="*60)
-    print(f"Log file       : {log_file}")
-    print(f"Input file     : {INPUT_CSV}")
-    print(f"Total rows read: {sum(counters.values())}")
-    print("\nRows written per bucket:")
-    for cat in CATEGORIES:
-        print(f"  {cat.name:30} → {counters[cat.name]:6} rows → {cat.output_file.name}")
-    print("="*60 + "\n")
+        print("\n" + "="*60)
+        print(f"SPLIT COMPLETED: {input_csv.name}")
+        print("="*60)
+        print(f"Total rows read: {sum(counters.values())}")
+        print("Rows written per bucket:")
+        for cat in CATEGORIES:
+            if counters[cat.name] == 0:
+                print(f"  {cat.name:30} →      0 rows → (no file created)")
+            else:
+                print(f"  {cat.name:30} → {counters[cat.name]:6} rows → {output_paths[cat.name].name}")
+        print("="*60)
+
+    print(f"\nLog file: {log_file}\n")
 
 
 if __name__ == "__main__":

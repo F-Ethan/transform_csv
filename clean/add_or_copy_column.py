@@ -6,7 +6,7 @@ import os
 # =============================================================================
 
 # Directory containing input/output files
-files_dir = "files/"
+files_dir = "../files/"
 
 # Input CSV filename
 input_filename = "tarranttx--2022-03-01_Primary_no_bqs.csv"

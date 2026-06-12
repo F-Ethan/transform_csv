@@ -19,27 +19,29 @@ from collections import defaultdict
 # ----------------------------------------------------------------------
 # GLOBAL CONFIGURATION – EDIT THESE SETTINGS
 # ----------------------------------------------------------------------
-INPUT_CSV       = "files/none.csv"
-AUTO_DETECT     = True                                  # Auto-find the only .csv in folder
+INPUT_CSV = "../files/2026-03-18.csv"
+AUTO_DETECT = True  # Auto-find the only .csv in folder
 
 # === SORTING ===
-SORT_FIELD      = "CandidateParty"                          # Column to sort by (case-insensitive)
+SORT_FIELD = "PrimaryParty"  # Column to sort by (case-insensitive)
 
-# === SPLIT MODE === Choose ONE of the three modes below
-SPLIT_MODE = "keyword"  # Options: "line", "keyword", "non_empty"
+# === SPLIT MODE === Choose ONE of the four modes below
+SPLIT_MODE = "by_value"  # Options: "line", "keyword", "non_empty", "by_value"
 
 # Mode: "line" → split at specific line number (including header)
 SPLIT_LINE = 230721
 
 # Mode: "keyword" → split when this keyword first appears (case-insensitive)
-KEYWORD_COLUMN  = "OfficeName"       # Column to search for keyword
-KEYWORD         = "Voting Statistics"            # First row containing this (in KEYWORD_COLUMN) starts Part 2
+KEYWORD_COLUMN = "OfficeName"  # Column to search for keyword
+KEYWORD = (
+    "Voting Statistics"  # First row containing this (in KEYWORD_COLUMN) starts Part 2
+)
 
 # Mode: "non_empty" → all rows with value in column → Part 1, empty → Part 2
-NON_EMPTY_COLUMN = "CandidateParty"      # Rows with non-empty value here go to Part 1
+NON_EMPTY_COLUMN = "CandidateParty"  # Rows with non-empty value here go to Part 1
 
 # === OUTPUT ===
-OUTPUT_PREFIX   = "output/split"     # Will create: split_part1.csv, split_part2.csv (or more if keyword creates multiple)
+OUTPUT_PREFIX = "../output/split"  # Will create: split_part1.csv, split_part2.csv (or more if keyword creates multiple)
 # ----------------------------------------------------------------------
 
 
@@ -69,14 +71,16 @@ def main():
 
 def resolve_input_path():
     if AUTO_DETECT:
-        csv_files = glob.glob("*.csv") + glob.glob("files/*.csv")
+        csv_files = glob.glob("../files/*.csv")
         csv_files = [f for f in csv_files if Path(f).is_file()]
         if len(csv_files) == 1:
             path = Path(csv_files[0])
             print(f"Auto-detected input: {path}")
             return path
         elif len(csv_files) > 1:
-            print("Multiple CSVs found. Please set AUTO_DETECT=False and specify INPUT_CSV.")
+            print(
+                "Multiple CSVs found. Please set AUTO_DETECT=False and specify INPUT_CSV."
+            )
             print("Found:", csv_files)
             return None
 
@@ -88,7 +92,7 @@ def resolve_input_path():
 
 
 def read_csv_rows(input_path):
-    with open(input_path, 'r', newline='', encoding='utf-8') as f:
+    with open(input_path, "r", newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         fieldnames = reader.fieldnames
         if not fieldnames:
@@ -113,7 +117,9 @@ def split_by_line_number(rows, fieldnames, input_path):
     part2 = rows[split_idx:]
 
     stem = input_path.stem
-    write_split_files(part1, part2, fieldnames, stem, suffix1="_part1", suffix2="_part2")
+    write_split_files(
+        part1, part2, fieldnames, stem, suffix1="_part1", suffix2="_part2"
+    )
 
 
 def split_by_keyword(rows, fieldnames, input_path):
@@ -128,7 +134,7 @@ def split_by_keyword(rows, fieldnames, input_path):
         value = (row.get(KEYWORD_COLUMN) or "").strip().lower()
         if keyword_lower in value:
             split_idx = i
-            print(f"Keyword '{KEYWORD}' first found at row {i+2} (data row {i+1})")
+            print(f"Keyword '{KEYWORD}' first found at row {i + 2} (data row {i + 1})")
             print(f"   Value: '{row.get(KEYWORD_COLUMN)}'")
             break
 
@@ -141,9 +147,14 @@ def split_by_keyword(rows, fieldnames, input_path):
         part2 = rows[split_idx:]
 
     stem = input_path.stem
-    write_split_files(part1, part2, fieldnames, stem,
-                      suffix1=f"_before_{KEYWORD.replace(' ', '_')}",
-                      suffix2=f"_from_{KEYWORD.replace(' ', '_')}_onward")
+    write_split_files(
+        part1,
+        part2,
+        fieldnames,
+        stem,
+        suffix1=f"_before_{KEYWORD.replace(' ', '_')}",
+        suffix2=f"_from_{KEYWORD.replace(' ', '_')}_onward",
+    )
 
 
 def split_by_non_empty(rows, fieldnames, input_path):
@@ -167,26 +178,33 @@ def split_by_non_empty(rows, fieldnames, input_path):
 
     stem = input_path.stem
     col_clean = NON_EMPTY_COLUMN.replace(" ", "_")
-    write_split_files(has_value, no_value, fieldnames, stem,
-                      suffix1=f"_{col_clean}_filled",
-                      suffix2=f"_{col_clean}_empty")
+    write_split_files(
+        has_value,
+        no_value,
+        fieldnames,
+        stem,
+        suffix1=f"_{col_clean}_filled",
+        suffix2=f"_{col_clean}_empty",
+    )
 
 
-def write_split_files(part1, part2, fieldnames, stem, suffix1="_part1", suffix2="_part2"):
+def write_split_files(
+    part1, part2, fieldnames, stem, suffix1="_part1", suffix2="_part2"
+):
     Path(OUTPUT_PREFIX).parent.mkdir(parents=True, exist_ok=True)
 
     out1 = Path(OUTPUT_PREFIX).parent / f"{stem}{suffix1}.csv"
     out2 = Path(OUTPUT_PREFIX).parent / f"{stem}{suffix2}.csv"
 
     # Write Part 1
-    with open(out1, 'w', newline='', encoding='utf-8') as f:
+    with open(out1, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(part1)
 
     # Write Part 2 (only if it has data)
     if part2:
-        with open(out2, 'w', newline='', encoding='utf-8') as f:
+        with open(out2, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(part2)
